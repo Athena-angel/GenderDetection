@@ -145,7 +145,7 @@ def _main_():
             writer.add_scalar("Train_loss", loss.item(), epoch)
 
             if epoch % save_every == 0:
-                checkpoint_path = f"./Checkpoint/checkpoint_{get_time()}_{epoch}.pt"
+                checkpoint_path = f"./Checkpoint/checkpoint__{epoch}.pt"
                 torch.save(
                     {
                         "epoch": epoch,
