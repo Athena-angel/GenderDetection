@@ -1,0 +1,1 @@
+python main.py train ./config.json --embedding_pretrained bertmodel --history ./run --finetune ./Checkpoint/checkpoint_60.pt

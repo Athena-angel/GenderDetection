@@ -1,0 +1,9 @@
+{
+  "model_name": "bertmodel",
+  "rnn_size": 128,
+  "Bidirectional": true,
+  "num_layers": 2,
+  "dropout": 0.3,
+  "max_length": 16,
+  "padding": true
+}

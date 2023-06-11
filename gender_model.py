@@ -1,35 +1,54 @@
-from keras import Sequential
-from keras.layers import Embedding, Bidirectional, LSTM, Dense
-from keras.optimizers import Adam
-from transformers import AutoModel, AutoTokenizer
+import json
 import torch
 
-def gendermodel():
-    model_name = "bertmodel"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModel.from_pretrained(model_name)
+import torch.nn.functional as F
 
-    input_text = "Example sentence to encode"
+from transformers import AutoModel, AutoTokenizer
+from module import LSTMEncoder
 
-    # Tokenize input text
-    tokens = tokenizer.tokenize(input_text)
 
-    # Convert token to ids and add padding
-    max_length = 16
-    padding = "max_length"
-    token_ids = tokenizer.encode_plus(tokens, max_length=max_length, padding=padding, return_tensors='pt')
+class GenderModel(torch.nn.Module):
+    def __init__(self, config_path, embedding_path):
+        super(GenderModel, self).__init__()
+        self.config = self._get_params(config_path)
+        self.tokenizer = AutoTokenizer.from_pretrained(embedding_path)
+        self.BertModel = AutoModel.from_pretrained(embedding_path)
+        embed_out_dim = list(self.BertModel.parameters())[-1].shape[0]
+        self.bi_lstm = LSTMEncoder(
+            input_size=embed_out_dim,
+            rnn_size=self.config["rnn_size"],
+            num_layers=self.config["num_layers"],
+            dropout=self.config["dropout"],
+            bidirectional=self.config["Bidirectional"],
+        )
+        self.linear = torch.nn.Linear(self.config["rnn_size"] * 2, 2)
 
-    # Pass token ids through the model to get embeddings
-    with torch.no_grad():
-        embeddings = model(**token_ids).last_hidden_state
-    model = Sequential([
-        AutoModel.
-        Bidirectional(LSTM(units=128, recurrent_dropout=0.2, dropout=0.2)),
-        Dense(1, activation="sigmoid")
-    ])
+    def forward(self, input_text):
+        tokens = []
+        for word in input_text:
+            token_ids = self.tokenizer.encode(word, add_special_tokens=True)
+            tokens.append(token_ids)
 
-    model.compile(loss='binary_crossentropy',
-                  optimizer=Adam(learning_rate=0.001),
-                  metrics=['accuracy'])
+        max_length = max(len(sequence) for sequence in tokens)
+        token_lengths = torch.tensor([max_length for _ in tokens])
+        padded_list = [
+            sequence + [0] * (max_length - len(sequence)) for sequence in tokens
+        ]
+        input_ids = torch.tensor(padded_list)
+        embedding = self.BertModel(input_ids)
 
-    return model
+        output, last_output = self.bi_lstm(embedding.last_hidden_state, token_lengths)
+        logits = self.linear(output)
+        logits = torch.mean(logits, dim=1)
+        logits = F.softmax(logits, dim=1)
+        return logits
+
+    @staticmethod
+    def _get_params(json_file):
+        with open(json_file, "r") as file:
+            jdata = json.load(file)
+        return jdata
+
+
+if __name__ == "__main__":
+    model = GenderModel("./config.json", "bertmodel")
